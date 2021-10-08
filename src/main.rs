@@ -1,5 +1,6 @@
 extern crate chrono;
 extern crate docopt;
+extern crate font_loader as fonts;
 extern crate geo;
 extern crate gpx;
 extern crate image;
@@ -10,8 +11,7 @@ extern crate libc;
 extern crate palette;
 extern crate rayon;
 extern crate rusttype;
-#[macro_use]
-extern crate serde_derive;
+extern crate serde;
 
 use std::error::Error;
 use std::fs;
@@ -20,14 +20,16 @@ use std::io::{stdout, BufReader};
 use std::path;
 
 use docopt::Docopt;
+use fonts::system_fonts;
 use gpx::read;
 use gpx::{Gpx, Track};
 use geo::Point;
-use palette::{Gradient, Hsv, IntoColor, RgbHue};
+use palette::{Gradient, Hsv, IntoColor, Pixel, Srgb};
 use image::ImageBuffer;
 use imageproc::drawing::draw_text_mut;
 use rayon::prelude::*;
-use rusttype::{Font, FontCollection, Scale};
+use rusttype::{Font, Scale};
+use serde::Deserialize;
 
 const USAGE: &'static str = "
 Generate video from GPX files.
@@ -70,24 +72,20 @@ struct CommandArgs {
 type ScreenPoint = (u32, u32);
 
 lazy_static!{
-    static ref GRADIENT: Gradient<Hsv<f64>> = {
-        let stops = vec![
-            (0.0, 0.75, 0.20),
-            (0.0, 0.75, 1.00),
-
-            // (0x22, 0x22, 0x22),
-            // (0xcc, 0xcc, 0xcc),
-            // (0xff, 0xff, 0xff),
-        ].into_iter().map(|p| Hsv::new(RgbHue::from(p.0), p.1, p.2));
-
-        Gradient::new(stops)
-    };
+    static ref GRADIENT: Gradient<Hsv> =
+        Gradient::new(
+        vec![
+            Hsv::new(0.0, 0.75, 0.20),
+            Hsv::new(0.0, 0.75, 1.00),
+        ]);
 
     static ref FONT: Font<'static> = {
-        let font_data = include_bytes!("../fonts/Roboto-Light.ttf");
-        let collection = FontCollection::from_bytes(font_data as &[u8]);
-
-        collection.into_font().unwrap()
+        let property = system_fonts::FontPropertyBuilder::new().family("Roboto Light").build();
+        if let Some((font_data, _)) = system_fonts::get(&property) {
+            Font::try_from_vec(font_data).unwrap()
+        } else {
+            panic!("Cannot load font");
+        }
     };
 }
 
@@ -150,24 +148,24 @@ impl Heatmap {
             .into_par_iter()
             .map(|count| {
                 if count == 0 {
-                    return (0, 0, 0);
+                    return [0u8, 0, 0];
                 }
 
                 let heat = (count as f64).log(self.max_value as f64);
-
-                GRADIENT.get(heat).into_rgb().to_pixel()
+                let rgb: Srgb = GRADIENT.get(heat as f32).into_color();
+                rgb.into_format().into_raw()
             })
             .collect::<Vec<_>>();
 
         let size = (self.width * self.height * 3) as usize;
         let mut pixels = Vec::with_capacity(size);
 
-        for pxl in color_map.iter() {
-            pixels.extend_from_slice(&[pxl.0, pxl.1, pxl.2]);
+        for pxls in color_map.iter() {
+            pixels.extend_from_slice(&pxls[..]);
         }
 
         let buffer = ImageBuffer::from_raw(self.width, self.height, pixels).unwrap();
-        image::ImageRgb8(buffer)
+        image::DynamicImage::ImageRgb8(buffer)
     }
 
     pub fn as_image_with_overlay(&self, act: &Activity) -> image::DynamicImage {
@@ -181,12 +179,12 @@ impl Heatmap {
 
         if self.render_date {
             let date_string = act.date.format("%B %d, %Y").to_string();
-            draw_text_mut(&mut image, white, x, y, scale, &FONT, date_string.as_str());
+            draw_text_mut(&mut image, white, x, y as i32, scale, &FONT, date_string.as_str());
             y -= scale.y as u32;
         }
 
         if self.render_title {
-            draw_text_mut(&mut image, white, x, y, scale, &FONT, act.name.as_str());
+            draw_text_mut(&mut image, white, x, y as i32, scale, &FONT, act.name.as_str());
         }
 
         image
@@ -255,7 +253,7 @@ struct Activity {
     track_points: Vec<Point<f64>>,
 }
 
-fn parse_gpx(path: &path::PathBuf) -> Result<Activity, Box<Error>> {
+fn parse_gpx(path: &path::PathBuf) -> Result<Activity, Box<dyn Error>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
 
@@ -336,7 +334,6 @@ Please pipe output to a file or program."
 
     eprintln!("Done!");
 
-    let png_file = &mut File::create(args.flag_output).unwrap();
     let mut stdout = stdout();
 
     let mut counter;
@@ -357,7 +354,7 @@ Please pipe output to a file or program."
             if counter % args.flag_frame_rate == 0 {
                 if args.flag_ppm_stream {
                     let image = map.as_image_with_overlay(&act);
-                    image.save(&mut stdout, image::PPM).unwrap();
+                    image.write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
                 }
             }
         }
@@ -367,8 +364,8 @@ Please pipe output to a file or program."
     }
 
     if args.flag_ppm_stream {
-        map.as_image().save(&mut stdout, image::PPM).unwrap();
+        map.as_image().write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
     };
 
-    map.as_image().save(png_file, image::PNG).unwrap();
+    map.as_image().save(args.flag_output).unwrap();
 }

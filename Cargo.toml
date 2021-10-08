@@ -4,20 +4,27 @@ version = "0.1.0"
 authors = ["Erik Price <github@erikprice.net>"]
 
 [dependencies]
-chrono = "0.4.0"
-docopt = "0.8.3"
-geo = "0.4.13"
-gpx = "0.1.0"
-image = "0.18.0"
-imageproc = "0.13.0"
+chrono = "0.4.19"
+docopt = "1.1.1"
+font-loader = "0.11.0"
+geo = "0.18.0"
+gpx = "0.8.3"
+image = "0.23.14"
+# imageproc = "0.22.0"
 lazy_static = "1.0"
 libc = "0.2.35"
-palette = "0.2.1"
-rayon = "0.9.0"
-rusttype = "0.2.1"
-serde = "1.0.24"
-serde_derive = "1.0.24"
+palette = "0.6.0"
+rayon = "1.5.1"
+rusttype = "0.9.0"
+serde = { version = "1.0", features = ["derive"] }
 
 # TODO: Eventually, this is much faster than the xml-rs code gpx uses
 # quick-xml = "0.10.1"
 
+# [dependencies.image]
+# git = "https://github.com/image-rs/image"
+# branch = "master"
+
+[dependencies.imageproc]
+git = "https://github.com/image-rs/imageproc"
+branch = "master"
