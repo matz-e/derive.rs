@@ -5,10 +5,12 @@ authors = ["Erik Price <github@erikprice.net>"]
 
 [dependencies]
 chrono = "0.4.19"
+directories = "4.0.1"
 docopt = "1.1.1"
 font-loader = "0.11.0"
 geo = "0.18.0"
-gpx = "0.8.3"
+gpx = "0.8.5"
+http_req = "0.8"
 image = "0.23.14"
 # imageproc = "0.22.0"
 lazy_static = "1.0"
@@ -17,6 +19,8 @@ palette = "0.6.0"
 rayon = "1.5.1"
 rusttype = "0.9.0"
 serde = { version = "1.0", features = ["derive"] }
+sha2 = "*"
+slippy_map_tilenames = "*"
 
 # TODO: Eventually, this is much faster than the xml-rs code gpx uses
 # quick-xml = "0.10.1"
@@ -28,3 +32,7 @@ serde = { version = "1.0", features = ["derive"] }
 [dependencies.imageproc]
 git = "https://github.com/image-rs/imageproc"
 branch = "master"
+
+# [dependencies.staticmap]
+# git = "https://github.com/matz-e/staticmap"
+# branch = "export-render"

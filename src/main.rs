@@ -13,6 +13,10 @@ extern crate rayon;
 extern crate rusttype;
 extern crate serde;
 
+mod osmbase;
+
+use osmbase::{Basemap, Coord};
+
 use std::error::Error;
 use std::fs;
 use std::fs::File;
@@ -35,18 +39,21 @@ const USAGE: &'static str = "
 Generate video from GPX files.
 
 Usage:
-  derivers -b BOUNDS [options] <directory>
+  derivers --lat=LAT --lon=LON [options] <directory>
   derivers (-h|--help)
 
 Arguments:
-  bounds       Boundaries of view port in form 'top-lat left-lng bottom-lat right-lng'
+  lat                    Latitude of the view port center
+  lon                    Longitude of the view port center
 
 Options:
   -h, --help             Show this help text.
-  -b, --bounds=BOUNDS    Boundaries of view port in form 'top-lat left-lng bottom-lat right-lng'
-  -w, --width=WIDTH      Width of output, in pixels [default: 1920]
-  --height=HEIGHT        Force height of output to pixel size (automatically calculated by default)
+  --lat=LAT              Latitude of the view port center
+  --lon=LON              Longitude of the view port center
+  --width=WIDTH          Width of output, in pixels [default: 1920]
+  --height=HEIGHT        Height of output to pixel size [default: 1080]
   -o, --output=FILE      Output a PNG of cumulative heatmap data to file. [default: heatmap.png]
+  -z, --zoom=LEVEL       Zoom level [default: 10]
 
 Video options:
   -r, --frame-rate=RATE  Output a frame every `RATE` GPS points [default: 1500]
@@ -58,15 +65,19 @@ Video options:
 #[derive(Debug, Deserialize)]
 struct CommandArgs {
     arg_directory: String,
-    flag_bounds: String,
-    flag_frame_rate: u32,
-    flag_height: Option<u32>,
     flag_help: bool,
+    // general options
+    flag_lat: f64,
+    flag_lon: f64,
     flag_output: String,
+    flag_width: u32,
+    flag_height: u32,
+    flag_zoom: u8,
+    // video options
+    flag_frame_rate: u32,
     flag_ppm_stream: bool,
     flag_title: bool,
     flag_date: bool,
-    flag_width: u32,
 }
 
 type ScreenPoint = (u32, u32);
@@ -91,7 +102,7 @@ lazy_static!{
 
 struct Heatmap {
     top_left: Point<f64>,
-    bottom_right: Point<f64>,
+    scale: Point<f64>,
     width: u32,
     height: u32,
     heatmap: Vec<u32>,
@@ -101,40 +112,26 @@ struct Heatmap {
 }
 
 impl Heatmap {
-    pub fn from(args: &CommandArgs) -> Heatmap {
-        let split_bounds = args.flag_bounds
-            .as_str()
-            .split(' ')
-            .map(|b| b.parse().unwrap())
-            .collect::<Vec<f64>>();
-
-        if split_bounds.len() != 4 {
-            panic!("Wrong format for boundaries!");
-        }
-
-        let top_left = Point::new(split_bounds[1], split_bounds[0]);
-        let bot_right = Point::new(split_bounds[3], split_bounds[2]);
-
-        // h == w * (top - bottom) / (right - left)
-        let ratio = (top_left.lat() - bot_right.lat()) / (bot_right.lng() - top_left.lng());
-
-        let width = args.flag_width;
-        let computed_height = (width as f64 * ratio) as u32;
-
-        let height = args.flag_height.unwrap_or(computed_height);
-
-        let size = (width * height) as usize;
+    pub fn from(
+        tl: (f64, f64),
+        br: (f64, f64),
+        args: &CommandArgs
+    ) -> Heatmap {
+        let top_left = Point::new(tl.1, tl.0);
+        let bot_right = Point::new(br.1, br.0);
+        let size = (args.flag_width * args.flag_height) as usize;
 
         let mut heatmap = Vec::with_capacity(size);
         for _ in 0..size {
             heatmap.push(0);
         }
+        let scale = Point::new(1.0 / (top_left.lng() - bot_right.lng()), 1.0 / (top_left.lat() - bot_right.lat()));
 
         Heatmap {
             top_left: top_left,
-            bottom_right: bot_right,
-            width: width,
-            height: height,
+            scale: scale,
+            width: args.flag_width,
+            height: args.flag_height,
             heatmap: heatmap,
             max_value: 0,
             render_date: args.flag_date,
@@ -230,8 +227,8 @@ impl Heatmap {
         let x_pos = self.top_left.lng() - coord.lng();
         let y_pos = self.top_left.lat() - coord.lat();
 
-        let x_offset = x_pos / (self.top_left.lng() - self.bottom_right.lng());
-        let y_offset = y_pos / (self.top_left.lat() - self.bottom_right.lat());
+        let x_offset = x_pos * self.scale.lng();
+        let y_offset = y_pos * self.scale.lat();
 
         let (x, y) = (
             (x_offset * self.width as f64),
@@ -293,14 +290,14 @@ fn parse_gpx(path: &path::PathBuf) -> Result<Activity, Box<dyn Error>> {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let args: CommandArgs = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
     if args.flag_help {
         eprintln!("{}", USAGE);
-        return;
+        return Ok(());
     }
 
     let is_tty = unsafe { libc::isatty(libc::STDOUT_FILENO as i32) } != 0;
@@ -312,7 +309,9 @@ Please pipe output to a file or program."
         std::process::exit(1);
     }
 
-    let mut map = Heatmap::from(&args);
+    let basemap = Basemap::from(Coord::from(args.flag_lat, args.flag_lon), args.flag_zoom, args.flag_width, args.flag_height)?;
+
+    let mut map = Heatmap::from(basemap.top_left_lat_lon(), basemap.bottom_right_lat_lon(), &args);
     let output_dir = match fs::read_dir(args.arg_directory) {
         Ok(dir) => dir,
         Err(err) => {
@@ -351,11 +350,9 @@ Please pipe output to a file or program."
 
             counter += 1;
 
-            if counter % args.flag_frame_rate == 0 {
-                if args.flag_ppm_stream {
-                    let image = map.as_image_with_overlay(&act);
-                    image.write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
-                }
+            if args.flag_ppm_stream && counter % args.flag_frame_rate == 0 {
+                let image = map.as_image_with_overlay(&act);
+                image.write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
             }
         }
 
@@ -366,6 +363,14 @@ Please pipe output to a file or program."
     if args.flag_ppm_stream {
         map.as_image().write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
     };
-
-    map.as_image().save(args.flag_output).unwrap();
+    let mut base_pixmap = basemap.draw()?;
+    let mut heat_pixmap = map.as_image().to_rgba8();
+    for pix in heat_pixmap.pixels_mut() {
+        if pix[0] == 0 {
+            pix[3] = 196;
+        }
+    }
+    image::imageops::overlay(&mut base_pixmap, &heat_pixmap, 0, 0);
+    base_pixmap.save(args.flag_output)?;
+    Ok(())
 }
