@@ -12,7 +12,7 @@ geo = "0.18.0"
 gpx = "0.8.5"
 http_req = "0.8"
 image = "0.23.14"
-# imageproc = "0.22.0"
+indicatif = {version = "*", features = ["rayon"]}
 lazy_static = "1.0"
 libc = "0.2.35"
 palette = "0.6.0"
@@ -25,14 +25,6 @@ slippy_map_tilenames = "*"
 # TODO: Eventually, this is much faster than the xml-rs code gpx uses
 # quick-xml = "0.10.1"
 
-# [dependencies.image]
-# git = "https://github.com/image-rs/image"
-# branch = "master"
-
 [dependencies.imageproc]
 git = "https://github.com/image-rs/imageproc"
 branch = "master"
-
-# [dependencies.staticmap]
-# git = "https://github.com/matz-e/staticmap"
-# branch = "export-render"

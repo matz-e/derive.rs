@@ -5,6 +5,7 @@ extern crate geo;
 extern crate gpx;
 extern crate image;
 extern crate imageproc;
+extern crate indicatif;
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;
@@ -34,6 +35,8 @@ use imageproc::drawing::draw_text_mut;
 use rayon::prelude::*;
 use rusttype::{Font, Scale};
 use serde::Deserialize;
+use indicatif::ParallelProgressIterator;
+use rayon::iter::{ParallelIterator, IntoParallelRefIterator};
 
 const USAGE: &'static str = "
 Generate video from GPX files.
@@ -165,7 +168,7 @@ impl Heatmap {
         image::DynamicImage::ImageRgb8(buffer)
     }
 
-    pub fn as_image_with_overlay(&self, act: &Activity) -> image::DynamicImage {
+    pub fn as_image_with_overlay(&self, name: &str, date: &chrono::DateTime<chrono::Utc>) -> image::DynamicImage {
         let mut image = self.as_image();
 
         let white = image::Rgba([255; 4]);
@@ -175,13 +178,13 @@ impl Heatmap {
         let mut y = self.height - scale.y as u32;
 
         if self.render_date {
-            let date_string = act.date.format("%B %d, %Y").to_string();
+            let date_string = date.format("%B %d, %Y").to_string();
             draw_text_mut(&mut image, white, x, y as i32, scale, &FONT, date_string.as_str());
             y -= scale.y as u32;
         }
 
         if self.render_title {
-            draw_text_mut(&mut image, white, x, y as i32, scale, &FONT, act.name.as_str());
+            draw_text_mut(&mut image, white, x, y as i32, scale, &FONT, name);
         }
 
         image
@@ -250,43 +253,67 @@ struct Activity {
     track_points: Vec<Point<f64>>,
 }
 
-fn parse_gpx(path: &path::PathBuf) -> Result<Activity, Box<dyn Error>> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
+#[derive(Debug)]
+struct ScreenActivity {
+    name: String,
+    date: chrono::DateTime<chrono::Utc>,
+    track_points: Vec<ScreenPoint>,
+}
 
-    let gpx: Gpx = read(reader)?;
+impl Activity {
+    pub fn from(path: &path::PathBuf) -> Result<Self, Box<dyn Error>> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
 
-    // Nothing to do if there are no tracks
-    if gpx.tracks.len() == 0 {
-        return Err(Box::from("file has no tracks"));
-    } else if gpx.tracks.len() > 1 {
-        eprintln!("Warning! more than 1 track, just taking first");
-    }
+        let gpx: Gpx = read(reader)?;
 
-    let track: &Track = &gpx.tracks[0];
+        // Nothing to do if there are no tracks
+        if gpx.tracks.len() == 0 {
+            return Err(Box::from("file has no tracks"));
+        } else if gpx.tracks.len() > 1 {
+            eprintln!("Warning! more than 1 track, just taking first");
+        }
 
-    let mut activity = Activity {
-        name: track.name.clone().unwrap_or(String::from("Untitled")),
-        date: chrono::Utc::now(),
-        track_points: vec![],
-    };
+        let track: &Track = &gpx.tracks[0];
 
-    if let Some(metadata) = gpx.metadata {
-        if let Some(time) = metadata.time {
-            activity.date = time;
+        let mut activity = Activity {
+            name: track.name.clone().unwrap_or(String::from("Untitled")),
+            date: chrono::Utc::now(),
+            track_points: vec![],
+        };
+
+        if let Some(metadata) = gpx.metadata {
+            if let Some(time) = metadata.time {
+                activity.date = time;
+            }
+        }
+
+        // Append all the waypoints.
+        for seg in track.segments.iter() {
+            let points = seg.points.iter().map(|ref wpt| wpt.point());
+            activity.track_points.extend(points);
+        }
+
+        if activity.track_points.len() == 0 {
+            Err(Box::from("No track points"))
+        } else {
+            Ok(activity)
         }
     }
 
-    // Append all the waypoints.
-    for seg in track.segments.iter() {
-        let points = seg.points.iter().map(|ref wpt| wpt.point());
-        activity.track_points.extend(points);
-    }
-
-    if activity.track_points.len() == 0 {
-        Err(Box::from("No track points"))
-    } else {
-        Ok(activity)
+    pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
+        let track_points: Vec<ScreenPoint> = self.track_points.par_iter()
+                .filter_map(|ref pt| heatmap.project_to_screen(pt))
+                .collect();
+        if track_points.len() == 0 {
+            Err(Box::from("No visible track points"))
+        } else {
+            Ok(ScreenActivity {
+                name: self.name,
+                date: self.date,
+                track_points,
+            })
+        }
     }
 }
 
@@ -322,11 +349,14 @@ Please pipe output to a file or program."
 
     let paths: Vec<path::PathBuf> = output_dir.into_iter().map(|p| p.unwrap().path()).collect();
 
-    eprint!("Parsing {:?} GPX files...", paths.len());
+    let npaths = paths.len();
+    eprint!("Parsing {:?} GPX files...", npaths);
 
-    let mut activities: Vec<Activity> = paths
+    let mut activities: Vec<ScreenActivity> = paths
         .into_par_iter()
-        .filter_map(|ref p| parse_gpx(p).ok())
+        .progress_count(npaths as u64)
+        .filter_map(|ref p| Activity::from(p).ok())
+        .filter_map(|a| a.project_to_screen(&map).ok())
         .collect();
 
     activities.sort_by_key(|a| a.date);
@@ -337,21 +367,14 @@ Please pipe output to a file or program."
 
     let mut counter;
     for act in activities {
-        eprintln!("Activity: {}", act.name);
-
-        let pixels: Vec<ScreenPoint> = act.track_points
-            .par_iter()
-            .filter_map(|ref pt| map.project_to_screen(pt))
-            .collect();
-
         counter = 0;
-        for ref point in pixels.into_iter() {
+        for ref point in act.track_points.into_iter() {
             map.add_point(point);
 
             counter += 1;
 
             if args.flag_ppm_stream && counter % args.flag_frame_rate == 0 {
-                let image = map.as_image_with_overlay(&act);
+                let image = map.as_image_with_overlay(&act.name, &act.date);
                 image.write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
             }
         }
