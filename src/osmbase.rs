@@ -9,7 +9,6 @@ use self::sha2::{Digest, Sha256};
 
 use std::convert::TryFrom;
 use std::error::Error;
-use std::fs::{create_dir_all, remove_file, File};
 use std::path::{Path, PathBuf};
 
 const TILE_SIZE: u32 = 256;
@@ -49,14 +48,12 @@ impl Downloader {
             cached = cached.join(Path::new(".png"));
         }
         if cached.exists() {
-            println!("cached: {}", url);
             return Ok(cached);
         }
-        println!("fetch:  {}", url);
         if let Some(p) = cached.parent() {
-            create_dir_all(p)?;
+            std::fs::create_dir_all(p)?;
         }
-        let mut writer = File::create(&cached)?;
+        let mut writer = Vec::new();
         let uri = Uri::try_from(&url[..])?;
         match Request::new(&uri)
             .header("user-agent", "derive.rs 0.1 contact maps@sushinara.net")
@@ -64,14 +61,14 @@ impl Downloader {
         {
             Ok(res) => {
                 if !res.status_code().is_success() {
-                    remove_file(cached)?;
-                    Err(res.reason().into())
+                    let msg = format!("failed to get {}: {}", url, res.reason());
+                    Err(msg.into())
                 } else {
+                    std::fs::write(&cached, writer)?;
                     Ok(cached)
                 }
             }
             Err(e) => {
-                remove_file(cached)?;
                 Err(e.into())
             }
         }
@@ -102,7 +99,7 @@ pub struct Basemap {
 }
 
 impl Basemap {
-    pub fn from(center: Coord, zoom: u8, width: u32, height: u32) -> Result<Self, Box<dyn Error>> {
+    pub fn from(center: Coord, zoom: u8, width: u32, height: u32, url_pattern: &str) -> Result<Self, Box<dyn Error>> {
         let (x, y) = smt::lonlat2tile(center.lon, center.lat, zoom);
         let center_tl = smt::tile2lonlat(x, y, zoom);
         let center_br = smt::tile2lonlat(x + 1, y + 1, zoom);
@@ -133,7 +130,7 @@ impl Basemap {
             offset_x,
             offset_y,
             zoom,
-            getter: Downloader::new("https://a.tile.osm.org/{z}/{x}/{y}.png")?,
+            getter: Downloader::new(url_pattern)?,
         })
     }
 

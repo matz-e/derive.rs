@@ -38,7 +38,7 @@ use serde::Deserialize;
 use indicatif::ParallelProgressIterator;
 use rayon::iter::{ParallelIterator, IntoParallelRefIterator};
 
-const USAGE: &'static str = "
+const USAGE: &'static str = r#"
 Generate video from GPX files.
 
 Usage:
@@ -57,13 +57,15 @@ Options:
   --height=HEIGHT        Height of output to pixel size [default: 1080]
   -o, --output=FILE      Output a PNG of cumulative heatmap data to file. [default: heatmap.png]
   -z, --zoom=LEVEL       Zoom level [default: 10]
+  --url=URL              URL pattern for background tiles (standard OSM: https://a.tile.osm.org/{z}/{x}/{y}.png)
+                         [default: https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png]
 
 Video options:
   -r, --frame-rate=RATE  Output a frame every `RATE` GPS points [default: 1500]
   -s, --ppm-stream       Output a PPM stream to stdout.
   --title                Render activity title into each frame.
   --date                 Render activity date into each frame.
-";
+"#;
 
 #[derive(Debug, Deserialize)]
 struct CommandArgs {
@@ -76,6 +78,7 @@ struct CommandArgs {
     flag_width: u32,
     flag_height: u32,
     flag_zoom: u8,
+    flag_url: String,
     // video options
     flag_frame_rate: u32,
     flag_ppm_stream: bool,
@@ -336,7 +339,7 @@ Please pipe output to a file or program."
         std::process::exit(1);
     }
 
-    let basemap = Basemap::from(Coord::from(args.flag_lat, args.flag_lon), args.flag_zoom, args.flag_width, args.flag_height)?;
+    let basemap = Basemap::from(Coord::from(args.flag_lat, args.flag_lon), args.flag_zoom, args.flag_width, args.flag_height, &args.flag_url)?;
 
     let mut map = Heatmap::from(basemap.top_left_lat_lon(), basemap.bottom_right_lat_lon(), &args);
     let output_dir = match fs::read_dir(args.arg_directory) {
@@ -361,13 +364,9 @@ Please pipe output to a file or program."
 
     activities.sort_by_key(|a| a.date);
 
-    eprintln!("Done!");
-
     let mut stdout = stdout();
-
-    let mut counter;
     for act in activities {
-        counter = 0;
+        let mut counter = 0;
         for ref point in act.track_points.into_iter() {
             map.add_point(point);
 
