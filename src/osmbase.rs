@@ -1,8 +1,9 @@
 extern crate directories;
+extern crate geo;
 extern crate http_req;
 extern crate image;
+extern crate imageproc;
 extern crate sha2;
-extern crate slippy_map_tilenames as smt;
 
 use self::http_req::{request::Request, uri::Uri};
 use self::sha2::{Digest, Sha256};
@@ -11,7 +12,7 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-const TILE_SIZE: u32 = 256;
+use crate::slippy;
 
 struct Downloader {
     cache_dir: PathBuf,
@@ -68,121 +69,78 @@ impl Downloader {
                     Ok(cached)
                 }
             }
-            Err(e) => {
-                Err(e.into())
-            }
+            Err(e) => Err(e.into()),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Coord {
-    lat: f64,
-    lon: f64,
-}
-
-impl Coord {
-    pub fn from(lat: f64, lon: f64) -> Self {
-        Self { lat, lon }
-    }
-}
-
 pub struct Basemap {
-    top_left: Coord,
-    bottom_right: Coord,
-    height: u32,
-    width: u32,
-    offset_x: u32,
-    offset_y: u32,
-    zoom: u8,
+    map: slippy::Map,
     getter: Downloader,
 }
 
 impl Basemap {
-    pub fn from(center: Coord, zoom: u8, width: u32, height: u32, url_pattern: &str) -> Result<Self, Box<dyn Error>> {
-        let (x, y) = smt::lonlat2tile(center.lon, center.lat, zoom);
-        let center_tl = smt::tile2lonlat(x, y, zoom);
-        let center_br = smt::tile2lonlat(x + 1, y + 1, zoom);
-
-        let dx = center_br.0 - center_tl.0;
-        let dy = center_tl.1 - center_br.1;
-
-        let tile_extend_x = width as f64 / (2.0 * TILE_SIZE as f64);
-        let tile_extend_y = height as f64 / (2.0 * TILE_SIZE as f64);
-
-        let lat_min = (center.lat - tile_extend_y * dy).clamp(-90.0, 90.0);
-        let lat_max = (center.lat + tile_extend_y * dy).clamp(-90.0, 90.0);
-
-        let lon_min = (center.lon - tile_extend_x * dx).clamp(-180.0, 180.0);
-        let lon_max = (center.lon + tile_extend_x * dx).clamp(-180.0, 180.0);
-
-        let (outer_x, outer_y) = smt::lonlat2tile(lon_max, lat_max, zoom);
-        let (outer_lon, outer_lat) = smt::tile2lonlat(outer_x, outer_y, zoom);
-
-        let offset_x = ((outer_lon - lon_max).abs() * TILE_SIZE as f64 / dx) as u32;
-        let offset_y = ((outer_lat - lat_max).abs() * TILE_SIZE as f64 / dy) as u32;
-
-        Ok(Basemap {
-            top_left: Coord::from(lat_max, lon_min),
-            bottom_right: Coord::from(lat_min, lon_max),
-            height,
-            width,
-            offset_x,
-            offset_y,
-            zoom,
+    pub fn from(
+        map: slippy::Map,
+        url_pattern: &str,
+    ) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            map,
             getter: Downloader::new(url_pattern)?,
         })
     }
 
-    pub fn top_left_lat_lon(&self) -> (f64, f64) {
-        (self.top_left.lat, self.top_left.lon)
-    }
-
-    pub fn bottom_right_lat_lon(&self) -> (f64, f64) {
-        (self.bottom_right.lat, self.bottom_right.lon)
-    }
-
     pub fn draw(self) -> Result<image::DynamicImage, Box<dyn Error>> {
-        let mut pixmap = image::DynamicImage::new_rgba8(self.width, self.height);
+        let (width, height) = self.map.pixel_size();
+        let mut pixmap = image::DynamicImage::new_rgba8(width, height);
 
-        let map_tl = smt::lonlat2tile(self.top_left.lon, self.top_left.lat, self.zoom);
-        let map_br = smt::lonlat2tile(self.bottom_right.lon, self.bottom_right.lat, self.zoom);
-        for i in map_tl.0..=map_br.0 {
-            for j in map_tl.1..=map_br.1 {
-                let filename = self.getter.get(self.zoom, i, j)?;
+        let (offset_x, offset_y) = self.map.pixel_offsets();
+        let (tile_min_x, tile_min_y) = self.map.tile_offsets();
+
+        for i in self.map.tile_xs() {
+            for j in self.map.tile_ys() {
+                let filename = self.getter.get(self.map.zoom(), i, j)?;
                 let raw_tile = image::open(filename)?;
-                let mut tile = image::imageops::crop_imm(&raw_tile, 0, 0, TILE_SIZE, TILE_SIZE);
-                let i = i - map_tl.0;
-                let j = j - map_tl.1;
-                let mut x = i * TILE_SIZE - self.offset_x;
-                let mut y = j * TILE_SIZE - self.offset_y;
+                let mut tile = image::imageops::crop_imm(
+                    &raw_tile,
+                    0,
+                    0,
+                    slippy::TILE_SIZE,
+                    slippy::TILE_SIZE,
+                );
+
+                let i = i - tile_min_x as u32;
+                let j = j - tile_min_y as u32;
+                let mut x = i * slippy::TILE_SIZE - offset_x;
+                let mut y = j * slippy::TILE_SIZE - offset_y;
+
                 if i == 0 && j == 0 {
                     x = 0;
                     y = 0;
                     tile = image::imageops::crop_imm(
                         &raw_tile,
-                        self.offset_x,
-                        0,
-                        TILE_SIZE - self.offset_x,
-                        TILE_SIZE - self.offset_y,
+                        offset_x,
+                        offset_y,
+                        slippy::TILE_SIZE - offset_x,
+                        slippy::TILE_SIZE - offset_y,
                     );
                 } else if i == 0 {
                     x = 0;
                     tile = image::imageops::crop_imm(
                         &raw_tile,
-                        self.offset_x,
+                        offset_x,
                         0,
-                        TILE_SIZE - self.offset_x,
-                        TILE_SIZE,
+                        slippy::TILE_SIZE - offset_x,
+                        slippy::TILE_SIZE,
                     );
                 } else if j == 0 {
                     y = 0;
                     tile = image::imageops::crop_imm(
                         &raw_tile,
                         0,
-                        self.offset_y,
-                        TILE_SIZE,
-                        TILE_SIZE - self.offset_y,
+                        offset_y,
+                        slippy::TILE_SIZE,
+                        slippy::TILE_SIZE - offset_y,
                     );
                 }
                 image::imageops::overlay(&mut pixmap, &tile, x, y);

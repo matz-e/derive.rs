@@ -12,6 +12,7 @@ geo = "0.18.0"
 gpx = "0.8.5"
 http_req = "0.8"
 image = "0.23.14"
+imageproc = "0.22.0"
 indicatif = {version = "*", features = ["rayon"]}
 lazy_static = "1.0"
 libc = "0.2.35"
@@ -20,11 +21,10 @@ rayon = "1.5.1"
 rusttype = "0.9.0"
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "*"
-slippy_map_tilenames = "*"
 
 # TODO: Eventually, this is much faster than the xml-rs code gpx uses
 # quick-xml = "0.10.1"
 
-[dependencies.imageproc]
-git = "https://github.com/image-rs/imageproc"
-branch = "master"
+# [dependencies.imageproc]
+# git = "https://github.com/image-rs/imageproc"
+# branch = "master"
