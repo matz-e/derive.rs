@@ -140,9 +140,18 @@ impl Activity {
     }
 
     pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
-        let track_points: Vec<Coordinate<u32>> = self.track_points.par_iter()
+        let mut track_points: Vec<Coordinate<u32>> = self.track_points.par_iter()
                 .filter_map(|ref pt| heatmap.project_to_screen(pt))
                 .collect();
+        track_points.sort_by(|a, b| {
+            let first = a.x.cmp(&b.x);
+            if first == std::cmp::Ordering::Equal {
+                a.y.cmp(&b.y)
+            } else {
+                first
+            }
+        });
+        track_points.dedup();
         if track_points.len() == 0 {
             Err(Box::from("No visible track points"))
         } else {
