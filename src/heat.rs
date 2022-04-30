@@ -11,7 +11,7 @@ lazy_static!{
     static ref GRADIENT: Gradient<Hsv> =
         Gradient::new(
         vec![
-            Hsv::new(0.0, 0.75, 0.20),
+            Hsv::new(0.0, 0.75, 0.45),
             Hsv::new(0.0, 0.75, 1.00),
         ]);
 
