@@ -1,5 +1,3 @@
-extern crate geo;
-
 use geo::algorithm::contains::Contains;
 use geo::{Coordinate, Point, Rect};
 

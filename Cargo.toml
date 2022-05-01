@@ -24,7 +24,3 @@ sha2 = "*"
 
 # TODO: Eventually, this is much faster than the xml-rs code gpx uses
 # quick-xml = "0.10.1"
-
-# [dependencies.imageproc]
-# git = "https://github.com/image-rs/imageproc"
-# branch = "master"

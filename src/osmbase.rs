@@ -1,18 +1,11 @@
-extern crate directories;
-extern crate geo;
-extern crate http_req;
-extern crate image;
-extern crate imageproc;
-extern crate sha2;
-
-use self::http_req::{request::Request, uri::Uri};
-use self::sha2::{Digest, Sha256};
+use http_req::{request::Request, uri::Uri};
+use sha2::{Digest, Sha256};
 
 use std::convert::TryFrom;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-use crate::slippy;
+use super::slippy;
 
 struct Downloader {
     cache_dir: PathBuf,

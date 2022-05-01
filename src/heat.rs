@@ -1,11 +1,12 @@
 use geo::{Coordinate, Point};
-use crate::slippy;
-use rayon::prelude::*;
 use fonts::system_fonts;
+use rayon::prelude::*;
 use imageproc::drawing::draw_text_mut;
 use image::ImageBuffer;
 use palette::{Gradient, Hsv, IntoColor, Pixel, Srgb};
 use rusttype::{Font, Scale};
+
+use super::slippy;
 
 lazy_static!{
     static ref GRADIENT: Gradient<Hsv> =

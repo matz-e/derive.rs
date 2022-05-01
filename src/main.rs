@@ -1,25 +1,16 @@
 extern crate chrono;
+extern crate derivers;
 extern crate docopt;
-extern crate font_loader as fonts;
 extern crate geo;
 extern crate gpx;
-extern crate image;
-extern crate imageproc;
 extern crate indicatif;
-#[macro_use]
-extern crate lazy_static;
 extern crate libc;
-extern crate palette;
 extern crate rayon;
-extern crate rusttype;
 extern crate serde;
 
-mod heat;
-mod osmbase;
-mod slippy;
-
-use heat::Heatmap;
-use osmbase::Basemap;
+use derivers::heat::Heatmap;
+use derivers::osmbase::Basemap;
+use derivers::slippy;
 
 use std::error::Error;
 use std::fs;
