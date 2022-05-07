@@ -19,12 +19,12 @@ use std::path;
 
 use docopt::Docopt;
 use geo::Point;
-use rayon::prelude::*;
-use serde::Deserialize;
 use indicatif::ParallelProgressIterator;
 use rayon::iter::ParallelIterator;
+use rayon::prelude::*;
+use serde::Deserialize;
 
-const USAGE: &'static str = r#"
+const USAGE: &str = r#"
 Generate video from GPX or FIT files.
 
 Usage:
@@ -91,7 +91,11 @@ Please pipe output to a file or program."
         std::process::exit(1);
     }
 
-    let reference_map = slippy::Map::from(Point::new(args.flag_lon, args.flag_lat), Point::new(args.flag_width, args.flag_height), args.flag_zoom);
+    let reference_map = slippy::Map::from(
+        Point::new(args.flag_lon, args.flag_lat),
+        Point::new(args.flag_width, args.flag_height),
+        args.flag_zoom,
+    );
 
     let basemap = Basemap::from(reference_map, &args.flag_url)?;
     let mut map = Heatmap::from(reference_map, args.flag_date, args.flag_title);
@@ -127,7 +131,9 @@ Please pipe output to a file or program."
 
             if args.flag_ppm_stream && counter % args.flag_frame_rate == 0 {
                 let image = map.as_image_with_overlay(&act.name, &act.date);
-                image.write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
+                image
+                    .write_to(&mut stdout, image::ImageFormat::Pnm)
+                    .unwrap();
             }
         }
 
@@ -136,7 +142,9 @@ Please pipe output to a file or program."
     }
 
     if args.flag_ppm_stream {
-        map.as_image().write_to(&mut stdout, image::ImageFormat::Pnm).unwrap();
+        map.as_image()
+            .write_to(&mut stdout, image::ImageFormat::Pnm)
+            .unwrap();
     };
     let mut base_pixmap = basemap.draw()?;
     let mut heat_pixmap = map.as_image().to_rgba8();

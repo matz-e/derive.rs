@@ -1,23 +1,20 @@
-use geo::{Coordinate, Point};
 use fonts::system_fonts;
-use rayon::prelude::*;
-use imageproc::drawing::draw_text_mut;
+use geo::{Coordinate, Point};
 use image::ImageBuffer;
+use imageproc::drawing::draw_text_mut;
 use palette::{Gradient, Hsv, IntoColor, Pixel, Srgb};
+use rayon::prelude::*;
 use rusttype::{Font, Scale};
 
 use super::slippy;
 
-lazy_static!{
+lazy_static! {
     static ref GRADIENT: Gradient<Hsv> =
-        Gradient::new(
-        vec![
-            Hsv::new(0.0, 0.75, 0.45),
-            Hsv::new(0.0, 0.75, 1.00),
-        ]);
-
+        Gradient::new(vec![Hsv::new(0.0, 0.75, 0.45), Hsv::new(0.0, 0.75, 1.00),]);
     static ref FONT: Font<'static> = {
-        let property = system_fonts::FontPropertyBuilder::new().family("Roboto Light").build();
+        let property = system_fonts::FontPropertyBuilder::new()
+            .family("Roboto Light")
+            .build();
         if let Some((font_data, _)) = system_fonts::get(&property) {
             Font::try_from_vec(font_data).unwrap()
         } else {
@@ -37,22 +34,13 @@ pub struct Heatmap {
 }
 
 impl Heatmap {
-    pub fn from(
-        map: slippy::Map,
-        render_date: bool,
-        render_title: bool,
-    ) -> Self {
+    pub fn from(map: slippy::Map, render_date: bool, render_title: bool) -> Self {
         let (width, height) = map.pixel_size();
         let size = (width * height) as usize;
 
-        let mut heatmap = Vec::with_capacity(size);
-        for _ in 0..size {
-            heatmap.push(0);
-        }
-
         Self {
             map,
-            heatmap,
+            heatmap: vec![0; size],
             height,
             width,
             max_value: 0,
@@ -62,7 +50,8 @@ impl Heatmap {
     }
 
     pub fn as_image(&self) -> image::DynamicImage {
-        let color_map = self.heatmap
+        let color_map = self
+            .heatmap
             .clone()
             .into_par_iter()
             .map(|count| {
@@ -87,7 +76,11 @@ impl Heatmap {
         image::DynamicImage::ImageRgb8(buffer)
     }
 
-    pub fn as_image_with_overlay(&self, name: &str, date: &chrono::DateTime<chrono::Utc>) -> image::DynamicImage {
+    pub fn as_image_with_overlay(
+        &self,
+        name: &str,
+        date: &chrono::DateTime<chrono::Utc>,
+    ) -> image::DynamicImage {
         let mut image = self.as_image();
 
         let white = image::Rgba([255; 4]);

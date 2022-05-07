@@ -28,11 +28,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from(
-        center: Point<f64>,
-        size: Point<u32>,
-        zoom: u8,
-    ) -> Self {
+    pub fn from(center: Point<f64>, size: Point<u32>, zoom: u8) -> Self {
         let tile_extends = Point::new(size.x() as f64, size.y() as f64) / TILE_SIZE as f64;
 
         let center = to_tile(&center, zoom);
@@ -63,22 +59,26 @@ impl Map {
     }
 
     pub fn tile_offsets(&self) -> (u32, u32) {
-        (self.extends_tiled.min().x as u32, self.extends_tiled.min().y as u32)
+        (
+            self.extends_tiled.min().x as u32,
+            self.extends_tiled.min().y as u32,
+        )
     }
 
     pub fn tile_xs(&self) -> std::ops::RangeInclusive<u32> {
-        self.extends_tiled.min().x as u32 ..= self.extends_tiled.max().x as u32
+        self.extends_tiled.min().x as u32..=self.extends_tiled.max().x as u32
     }
 
     pub fn tile_ys(&self) -> std::ops::RangeInclusive<u32> {
-        self.extends_tiled.min().y as u32 ..= self.extends_tiled.max().y as u32
+        self.extends_tiled.min().y as u32..=self.extends_tiled.max().y as u32
     }
 
     pub fn to_pixels(&self, coord: &Point<f64>) -> Option<Coordinate<u32>> {
         if !self.extends_coord.contains(coord) {
             return None;
         }
-        let float_coord = (to_tile(coord, self.zoom) - self.extends_tiled.min().into()) * TILE_SIZE.into();
+        let float_coord =
+            (to_tile(coord, self.zoom) - self.extends_tiled.min().into()) * TILE_SIZE.into();
         Some((float_coord.x() as u32, float_coord.y() as u32).into())
     }
 

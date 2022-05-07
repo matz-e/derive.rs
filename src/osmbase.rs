@@ -73,10 +73,7 @@ pub struct Basemap {
 }
 
 impl Basemap {
-    pub fn from(
-        map: slippy::Map,
-        url_pattern: &str,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn from(map: slippy::Map, url_pattern: &str) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             map,
             getter: Downloader::new(url_pattern)?,

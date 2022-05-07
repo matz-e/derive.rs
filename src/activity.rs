@@ -4,14 +4,23 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::BufReader;
-use std::path;
+use std::path::Path;
 
 use fitparser::profile::field_types;
 use flate2::read::GzDecoder;
-use gpx::{Gpx, Track};
 use geo::{Coordinate, Point};
-use rayon::prelude::*;
+use gpx::{Gpx, Track};
 use rayon::iter::IntoParallelRefIterator;
+use rayon::prelude::*;
+
+fn extract_coordinate(field: &fitparser::FitDataField) -> Option<f64> {
+    if field.units() == "semicircles" {
+        if let fitparser::Value::SInt32(raw) = field.value() {
+            return Some(*raw as f64 * 180.0 / u32::pow(2, 31) as f64);
+        }
+    }
+    None
+}
 
 fn parse_fit<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Box<dyn Error>> {
     let mut activity = Activity {
@@ -26,17 +35,9 @@ fn parse_fit<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
             let mut lon: Option<f64> = None;
             for field in data.fields() {
                 if field.name() == "position_lat" {
-                    if field.units() == "semicircles" {
-                        if let fitparser::Value::SInt32(raw) = field.value() {
-                            lat = Some(*raw as f64 * 180.0 / u32::pow(2, 31) as f64);
-                        }
-                    }
+                    lat = extract_coordinate(field);
                 } else if field.name() == "position_long" {
-                    if field.units() == "semicircles" {
-                        if let fitparser::Value::SInt32(raw) = field.value() {
-                            lon = Some(*raw as f64 * 180.0 / u32::pow(2, 31) as f64);
-                        }
-                    }
+                    lon = extract_coordinate(field);
                 }
             }
             if let Some((x, y)) = lon.zip(lat) {
@@ -45,7 +46,7 @@ fn parse_fit<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
         }
     }
 
-    if activity.track_points.len() == 0 {
+    if activity.track_points.is_empty() {
         Err(Box::from("No track points"))
     } else {
         Ok(activity)
@@ -55,7 +56,7 @@ fn parse_fit<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
 fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Box<dyn Error>> {
     let gpx: Gpx = gpx::read(reader)?;
     // Nothing to do if there are no tracks
-    if gpx.tracks.len() == 0 {
+    if gpx.tracks.is_empty() {
         return Err(Box::from("file has no tracks"));
     } else if gpx.tracks.len() > 1 {
         eprintln!("Warning! more than 1 track, just taking first");
@@ -64,7 +65,10 @@ fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
     let track: &Track = &gpx.tracks[0];
 
     let mut activity = Activity {
-        name: track.name.clone().unwrap_or(String::from("Untitled")),
+        name: track
+            .name
+            .clone()
+            .unwrap_or_else(|| String::from("Untitled")),
         date: chrono::Utc::now(),
         track_points: vec![],
     };
@@ -77,18 +81,21 @@ fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
 
     // Append all the waypoints.
     for seg in track.segments.iter() {
-        let points = seg.points.iter().map(|ref wpt| wpt.point());
+        let points = seg.points.iter().map(|wpt| wpt.point());
         activity.track_points.extend(points);
     }
 
-    if activity.track_points.len() == 0 {
+    if activity.track_points.is_empty() {
         Err(Box::from("No track points"))
     } else {
         Ok(activity)
     }
 }
 
-fn parse<T: std::io::Read>(reader: &mut BufReader<T>, path: &path::PathBuf) -> Result<Activity, Box<dyn Error>> {
+fn parse<T: std::io::Read>(
+    reader: &mut BufReader<T>,
+    path: &Path,
+) -> Result<Activity, Box<dyn Error>> {
     if path.extension() == Some(OsStr::new("gpx")) {
         parse_gpx(reader)
     } else if path.extension() == Some(OsStr::new("fit")) {
@@ -113,7 +120,7 @@ pub struct ScreenActivity {
 }
 
 impl Activity {
-    pub fn from(path: &path::PathBuf) -> Result<Self, Box<dyn Error>> {
+    pub fn from(path: &Path) -> Result<Self, Box<dyn Error>> {
         if path.extension() == Some(OsStr::new("gz")) {
             let file = File::open(path)?;
             let decoder = GzDecoder::new(file);
@@ -127,9 +134,11 @@ impl Activity {
     }
 
     pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
-        let mut track_points: Vec<Coordinate<u32>> = self.track_points.par_iter()
-                .filter_map(|ref pt| heatmap.project_to_screen(pt))
-                .collect();
+        let mut track_points: Vec<Coordinate<u32>> = self
+            .track_points
+            .par_iter()
+            .filter_map(|pt| heatmap.project_to_screen(pt))
+            .collect();
         track_points.sort_by(|a, b| {
             let first = a.x.cmp(&b.x);
             if first == std::cmp::Ordering::Equal {
@@ -139,7 +148,7 @@ impl Activity {
             }
         });
         track_points.dedup();
-        if track_points.len() == 0 {
+        if track_points.is_empty() {
             Err(Box::from("No visible track points"))
         } else {
             Ok(ScreenActivity {
