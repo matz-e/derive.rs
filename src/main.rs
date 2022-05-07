@@ -25,7 +25,7 @@ use indicatif::ParallelProgressIterator;
 use rayon::iter::ParallelIterator;
 
 const USAGE: &'static str = r#"
-Generate video from GPX files.
+Generate video from GPX or FIT files.
 
 Usage:
   derivers --lat=LAT --lon=LON [options] <directory>
@@ -106,7 +106,7 @@ Please pipe output to a file or program."
     let paths: Vec<path::PathBuf> = output_dir.into_iter().map(|p| p.unwrap().path()).collect();
 
     let npaths = paths.len();
-    eprint!("Parsing {:?} GPX files...", npaths);
+    eprint!("Parsing {:?} files...", npaths);
 
     let mut activities: Vec<ScreenActivity> = paths
         .into_par_iter()

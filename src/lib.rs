@@ -1,3 +1,5 @@
+extern crate fitparser;
+extern crate flate2;
 extern crate font_loader as fonts;
 extern crate geo;
 extern crate gpx;
