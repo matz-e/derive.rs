@@ -18,7 +18,6 @@ use std::io::stdout;
 use std::path;
 
 use docopt::Docopt;
-use geo::Point;
 use indicatif::ParallelProgressIterator;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
@@ -92,8 +91,10 @@ Please pipe output to a file or program."
     }
 
     let reference_map = slippy::Map::from(
-        Point::new(args.flag_lon, args.flag_lat),
-        Point::new(args.flag_width, args.flag_height),
+        args.flag_lon,
+        args.flag_lat,
+        args.flag_width,
+        args.flag_height,
         args.flag_zoom,
     );
 

@@ -28,9 +28,11 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from(center: Point<f64>, size: Point<u32>, zoom: u8) -> Self {
+    pub fn from(center_x: f64, center_y: f64, width: u32, height: u32, zoom: u8) -> Self {
+        let size = Point::new(width, height);
         let tile_extends = Point::new(size.x() as f64, size.y() as f64) / TILE_SIZE as f64;
 
+        let center = Point::new(center_x, center_y);
         let center = to_tile(&center, zoom);
         let extends_tiled = Rect::new(center + tile_extends * 0.5, center - tile_extends * 0.5);
         let extends_coord = Rect::new(
