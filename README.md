@@ -5,12 +5,14 @@
 Rust reimplementation of [derive](https://github.com/erik/derive).
 
 ```
-cargo run --release --                                           \
-          --bounds '34.205911 -119.009399 33.709276 -118.026123' \
-          --width 2000                                           \
-          --output heatmap.png                                   \
-          --ppm-stream                                           \
-          --frame-rate 1950                                      \
-          ~/Downloads/strava-data-dump/                          \
+cargo run --release -- \
+          --lat=47.2 \
+          --lon=6.7 \
+          --zoom 8 \
+          --width=1200 \
+          --height=1200 \
+          --stream \
+          --frame-rate 50 \
+          ~/Downloads/strava/activities \
 | ffmpeg -i - -y heatmap.mp4
 ```

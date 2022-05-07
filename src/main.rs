@@ -47,7 +47,7 @@ Options:
 
 Video options:
   -r, --frame-rate=RATE  Output a frame every `RATE` GPS points [default: 1500]
-  -s, --ppm-stream       Output a PPM stream to stdout.
+  -s, --stream           Output a stream to stdout to be processed with, e.g., ffmpeg.
   --title                Render activity title into each frame.
   --date                 Render activity date into each frame.
 "#;
@@ -66,7 +66,7 @@ struct CommandArgs {
     flag_url: String,
     // video options
     flag_frame_rate: u32,
-    flag_ppm_stream: bool,
+    flag_stream: bool,
     flag_title: bool,
     flag_date: bool,
 }
@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let is_tty = unsafe { libc::isatty(libc::STDOUT_FILENO as i32) } != 0;
-    if args.flag_ppm_stream && is_tty {
+    if args.flag_stream && is_tty {
         eprintln!(
             "Refusing to write frame data to TTY.\n
 Please pipe output to a file or program."
@@ -130,10 +130,10 @@ Please pipe output to a file or program."
 
             counter += 1;
 
-            if args.flag_ppm_stream && counter % args.flag_frame_rate == 0 {
+            if args.flag_stream && counter % args.flag_frame_rate == 0 {
                 let image = map.as_image_with_overlay(&act.name, &act.date);
                 image
-                    .write_to(&mut stdout, image::ImageFormat::Pnm)
+                    .write_to(&mut stdout, image::ImageFormat::Png)
                     .unwrap();
             }
         }
@@ -142,9 +142,9 @@ Please pipe output to a file or program."
         // map.decay(1);
     }
 
-    if args.flag_ppm_stream {
+    if args.flag_stream {
         map.as_image()
-            .write_to(&mut stdout, image::ImageFormat::Pnm)
+            .write_to(&mut stdout, image::ImageFormat::Png)
             .unwrap();
     };
     let mut base_pixmap = basemap.draw()?;
