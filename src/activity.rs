@@ -139,14 +139,6 @@ impl Activity {
             .par_iter()
             .filter_map(|pt| heatmap.project_to_screen(pt))
             .collect();
-        track_points.sort_by(|a, b| {
-            let first = a.x.cmp(&b.x);
-            if first == std::cmp::Ordering::Equal {
-                a.y.cmp(&b.y)
-            } else {
-                first
-            }
-        });
         track_points.dedup();
         if track_points.is_empty() {
             Err(Box::from("No visible track points"))
