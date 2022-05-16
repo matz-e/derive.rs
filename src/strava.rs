@@ -66,13 +66,13 @@ impl DataExport {
         Ok(DataExport { activities })
     }
 
-    pub fn parse(&self, map: &mut Heatmap) -> Vec<ScreenActivity> {
+    pub fn parse(self, map: &mut Heatmap) -> Vec<ScreenActivity> {
         let n = self.activities.len();
         eprint!("Parsing {:?} files", n);
 
         let mut activities: Vec<ScreenActivity> = self
             .activities
-            .par_iter()
+            .into_par_iter()
             .progress_count(n as u64)
             .filter_map(|a| a.parse().ok())
             .filter_map(|a| a.project_to_screen(map).ok())

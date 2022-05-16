@@ -129,7 +129,7 @@ impl RawActivity {
         RawActivity { name, date, path }
     }
 
-    pub fn parse(&self) -> Result<Activity, Box<dyn Error>> {
+    pub fn parse(self) -> Result<Activity, Box<dyn Error>> {
         let file = File::open(&self.path)?;
         let mut activity = if self.path.extension() == Some(OsStr::new("gz")) {
             let decoder = GzDecoder::new(file);
@@ -139,7 +139,7 @@ impl RawActivity {
             let mut reader = BufReader::new(file);
             parse(&mut reader, &self.path)
         }?;
-        activity.name = self.name.clone();
+        activity.name = self.name;
         activity.date = self.date;
         Ok(activity)
     }
