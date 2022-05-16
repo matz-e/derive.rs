@@ -2,25 +2,19 @@ extern crate chrono;
 extern crate derivers;
 extern crate docopt;
 extern crate geo;
-extern crate indicatif;
 extern crate libc;
-extern crate rayon;
 extern crate serde;
 
-use derivers::activity::{Activity, ScreenActivity};
 use derivers::heat::Heatmap;
 use derivers::osmbase::Basemap;
 use derivers::slippy;
+use derivers::strava;
 
 use std::error::Error;
-use std::fs;
 use std::io::stdout;
 use std::path;
 
 use docopt::Docopt;
-use indicatif::ParallelProgressIterator;
-use rayon::iter::ParallelIterator;
-use rayon::prelude::*;
 use serde::Deserialize;
 
 const USAGE: &str = r#"
@@ -100,28 +94,9 @@ Please pipe output to a file or program."
 
     let basemap = Basemap::from(reference_map, &args.flag_url)?;
     let mut map = Heatmap::from(reference_map, args.flag_date, args.flag_title);
-    let output_dir = match fs::read_dir(args.arg_directory) {
-        Ok(dir) => dir,
-        Err(err) => {
-            eprintln!("Error reading input directory: {}", err);
-            std::process::exit(1);
-        }
-    };
 
-    let paths: Vec<path::PathBuf> = output_dir.into_iter().map(|p| p.unwrap().path()).collect();
-
-    let npaths = paths.len();
-    eprint!("Parsing {:?} files...", npaths);
-
-    let mut activities: Vec<ScreenActivity> = paths
-        .into_par_iter()
-        .progress_count(npaths as u64)
-        .filter_map(|ref p| Activity::from(p).ok())
-        .filter_map(|a| a.project_to_screen(&map).ok())
-        .collect();
-
-    activities.sort_by_key(|a| a.date);
-
+    let export = strava::DataExport::new(&path::PathBuf::from(&args.arg_directory))?;
+    let activities = export.parse(&mut map);
     let mut stdout = stdout();
     for act in activities {
         let mut counter = 0;

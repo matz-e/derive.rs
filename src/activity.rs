@@ -4,7 +4,7 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fitparser::profile::field_types;
 use flate2::read::GzDecoder;
@@ -105,6 +105,12 @@ fn parse<T: std::io::Read>(
     }
 }
 
+pub struct RawActivity {
+    name: String,
+    date: chrono::DateTime<chrono::Utc>,
+    path: PathBuf,
+}
+
 #[derive(Debug)]
 pub struct Activity {
     name: String,
@@ -119,20 +125,28 @@ pub struct ScreenActivity {
     pub track_points: Vec<Coordinate<u32>>,
 }
 
-impl Activity {
-    pub fn from(path: &Path) -> Result<Self, Box<dyn Error>> {
-        if path.extension() == Some(OsStr::new("gz")) {
-            let file = File::open(path)?;
-            let decoder = GzDecoder::new(file);
-            let mut reader = BufReader::new(decoder);
-            parse(&mut reader, &path.with_extension(""))
-        } else {
-            let file = File::open(path)?;
-            let mut reader = BufReader::new(file);
-            parse(&mut reader, path)
-        }
+impl RawActivity {
+    pub fn new(name: String, date: chrono::DateTime<chrono::Utc>, path: PathBuf) -> Self {
+        RawActivity { name, date, path }
     }
 
+    pub fn parse(&self) -> Result<Activity, Box<dyn Error>> {
+        let file = File::open(&self.path)?;
+        let mut activity = if self.path.extension() == Some(OsStr::new("gz")) {
+            let decoder = GzDecoder::new(file);
+            let mut reader = BufReader::new(decoder);
+            parse(&mut reader, &self.path.with_extension(""))
+        } else {
+            let mut reader = BufReader::new(file);
+            parse(&mut reader, &self.path)
+        }?;
+        activity.name = self.name.clone();
+        activity.date = self.date;
+        Ok(activity)
+    }
+}
+
+impl Activity {
     pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
         let mut track_points: Vec<Coordinate<u32>> = self
             .track_points
