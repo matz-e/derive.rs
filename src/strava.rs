@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use chrono::prelude::*;
 use indicatif::ParallelProgressIterator;
-use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
 use regex::Regex;
 

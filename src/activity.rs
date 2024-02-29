@@ -10,7 +10,6 @@ use fitparser::profile::field_types;
 use flate2::read::GzDecoder;
 use geo::{Coordinate, Point};
 use gpx::{Gpx, Track};
-use rayon::iter::IntoParallelRefIterator;
 use rayon::prelude::*;
 
 fn extract_coordinate(field: &fitparser::FitDataField) -> Option<f64> {
