@@ -99,8 +99,8 @@ impl Basemap {
                     slippy::TILE_SIZE,
                 );
 
-                let i = i - tile_min_x as u32;
-                let j = j - tile_min_y as u32;
+                let i = i - tile_min_x;
+                let j = j - tile_min_y;
                 let mut x = i * slippy::TILE_SIZE - offset_x;
                 let mut y = j * slippy::TILE_SIZE - offset_y;
 

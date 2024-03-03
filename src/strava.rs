@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 
 use chrono::prelude::*;
 use indicatif::ParallelProgressIterator;
@@ -17,7 +17,7 @@ pub struct DataExport {
 type Record = HashMap<String, String>;
 
 impl DataExport {
-    pub fn new(path: &PathBuf) -> Result<Self, Box<dyn Error>> {
+    pub fn new(path: &Path) -> Result<Self, Box<dyn Error>> {
         let time_padding_re = Regex::new(r"(, )(\d:)")?;
         let date_padding_re = Regex::new(r"( )(\d,)")?;
 
@@ -75,7 +75,7 @@ impl DataExport {
             .par_iter()
             .progress_count(n as u64)
             .filter_map(|a| a.parse().ok())
-            .filter_map(|a| a.project_to_screen(&map).ok())
+            .filter_map(|a| a.project_to_screen(map).ok())
             .collect();
         activities.sort_by_key(|a| a.date);
         activities
