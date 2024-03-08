@@ -3,14 +3,14 @@ use geo_types::{Coord, Point, Rect};
 
 pub const TILE_SIZE: u32 = 256;
 
-fn to_tile(p: &Point<f64>, zoom: u8) -> Point<f64> {
+pub fn to_tile(p: &Point<f64>, zoom: u8) -> Point<f64> {
     let n = 2u32.pow(zoom as u32) as f64;
     let x = n * ((p.x() + 180.0) / 360.0);
     let y = n * (1.0 - (p.y().to_radians().tan().asinh() / std::f64::consts::PI)) * 0.5;
     (x, y).into()
 }
 
-fn from_tile(p: Point<f64>, zoom: u8) -> Point<f64> {
+pub fn from_tile(p: Point<f64>, zoom: u8) -> Point<f64> {
     let n = 2u32.pow(zoom as u32) as f64;
     let x = p.x() / n * 360.0 - 180.0;
     let y = ((std::f64::consts::PI * (1.0 - 2.0 / n * p.y())).sinh())
@@ -21,9 +21,13 @@ fn from_tile(p: Point<f64>, zoom: u8) -> Point<f64> {
 
 #[derive(Clone, Copy)]
 pub struct Map {
+    /// Extends in tile coordinates
     extends_tiled: Rect<f64>,
+    /// Extends in longitude/latitude
     extends_coord: Rect<f64>,
+    /// Size in pixels
     size: Point<u32>,
+    /// Zoom level of the current map
     zoom: u8,
 }
 

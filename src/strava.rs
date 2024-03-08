@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use regex::Regex;
 
 use super::activity::{RawActivity, ScreenActivity};
-use super::heat::Heatmap;
+use super::heat::PixelHeatmap;
 
 pub struct DataExport {
     activities: Vec<RawActivity>,
@@ -66,7 +66,7 @@ impl DataExport {
         Ok(DataExport { activities })
     }
 
-    pub fn parse(self, map: &mut Heatmap) -> Vec<ScreenActivity> {
+    pub fn parse(self, map: &mut PixelHeatmap) -> Vec<ScreenActivity> {
         let n = self.activities.len();
         eprint!("Parsing {:?} files", n);
 

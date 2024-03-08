@@ -5,7 +5,7 @@ extern crate geo;
 extern crate libc;
 extern crate serde;
 
-use derivers::heat::Heatmap;
+use derivers::heat::{Heatmap, PixelHeatmap};
 use derivers::osmbase::Basemap;
 use derivers::slippy;
 use derivers::strava;
@@ -82,7 +82,7 @@ Please pipe output to a file or program."
     );
 
     let basemap = Basemap::from(reference_map, &args.url)?;
-    let mut map = Heatmap::from(reference_map, args.date, args.title);
+    let mut map = PixelHeatmap::from(reference_map, args.date, args.title);
 
     let export = strava::DataExport::new(&path::PathBuf::from(&args.directory))?;
     let activities = export.parse(&mut map);

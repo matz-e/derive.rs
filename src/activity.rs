@@ -11,7 +11,6 @@ use flate2::read::GzDecoder;
 use geo::Point;
 use geo_types::Coord;
 use gpx::{Gpx, Track};
-use rayon::prelude::*;
 use time::OffsetDateTime;
 
 fn extract_coordinate(field: &fitparser::FitDataField) -> Option<f64> {
@@ -150,10 +149,10 @@ impl RawActivity {
 }
 
 impl Activity {
-    pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
+    pub fn project_to_screen(self, heatmap: &dyn Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
         let mut track_points: Vec<Coord<u32>> = self
             .track_points
-            .par_iter()
+            .iter()
             .filter_map(|pt| heatmap.project_to_screen(pt))
             .collect();
         track_points.dedup();

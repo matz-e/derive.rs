@@ -23,7 +23,18 @@ lazy_static! {
     };
 }
 
-pub struct Heatmap {
+pub trait Heatmap {
+    fn as_image(&self) -> image::DynamicImage;
+    fn as_image_with_overlay( &self,
+        name: &str,
+        date: &chrono::DateTime<chrono::Utc>,
+    ) -> image::DynamicImage;
+    fn add_point(&mut self, point: &Coord<u32>);
+    fn decay(&mut self, amount: u32);
+    fn project_to_screen(&self, coord: &Point<f64>) -> Option<Coord<u32>>;
+}
+
+pub struct PixelHeatmap {
     map: slippy::Map,
     heatmap: Vec<u32>,
     height: u32,
@@ -33,7 +44,7 @@ pub struct Heatmap {
     render_title: bool,
 }
 
-impl Heatmap {
+impl PixelHeatmap {
     pub fn from(map: slippy::Map, render_date: bool, render_title: bool) -> Self {
         let (width, height) = map.pixel_size();
         let size = (width * height) as usize;
@@ -49,7 +60,19 @@ impl Heatmap {
         }
     }
 
-    pub fn as_image(&self) -> image::DynamicImage {
+    #[inline]
+    fn get_pixel_mut(&mut self, point: &Coord<u32>) -> Option<&mut u32> {
+        if point.x >= self.width || point.y >= self.height {
+            return None;
+        }
+
+        let index = (point.x + (point.y * self.width)) as usize;
+        Some(&mut self.heatmap[index])
+    }
+}
+
+impl Heatmap for PixelHeatmap {
+    fn as_image(&self) -> image::DynamicImage {
         let color_map = self
             .heatmap
             .clone()
@@ -76,7 +99,7 @@ impl Heatmap {
         image::DynamicImage::ImageRgb8(buffer)
     }
 
-    pub fn as_image_with_overlay(
+    fn as_image_with_overlay(
         &self,
         name: &str,
         date: &chrono::DateTime<chrono::Utc>,
@@ -103,17 +126,7 @@ impl Heatmap {
     }
 
     #[inline]
-    fn get_pixel_mut(&mut self, point: &Coord<u32>) -> Option<&mut u32> {
-        if point.x >= self.width || point.y >= self.height {
-            return None;
-        }
-
-        let index = (point.x + (point.y * self.width)) as usize;
-        Some(&mut self.heatmap[index])
-    }
-
-    #[inline]
-    pub fn add_point(&mut self, point: &Coord<u32>) {
+    fn add_point(&mut self, point: &Coord<u32>) {
         // FIXME: lol rust?
         let px = {
             let px = self.get_pixel_mut(point).unwrap();
@@ -125,7 +138,7 @@ impl Heatmap {
     }
 
     #[allow(dead_code)]
-    pub fn decay(&mut self, amount: u32) {
+    fn decay(&mut self, amount: u32) {
         self.max_value -= 1;
 
         self.heatmap.par_iter_mut().for_each(|px| {
@@ -136,7 +149,7 @@ impl Heatmap {
     }
 
     // Returns None if point is off screen.
-    pub fn project_to_screen(&self, coord: &Point<f64>) -> Option<Coord<u32>> {
+    fn project_to_screen(&self, coord: &Point<f64>) -> Option<Coord<u32>> {
         if let Some(mapping) = self.map.to_pixels(coord) {
             return Some(mapping);
         }
