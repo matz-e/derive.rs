@@ -3,6 +3,7 @@ extern crate fitparser;
 extern crate flate2;
 extern crate font_loader as fonts;
 extern crate geo;
+extern crate geo_types;
 extern crate gpx;
 extern crate image;
 extern crate imageproc;
@@ -16,6 +17,7 @@ extern crate rayon;
 extern crate regex;
 extern crate rusttype;
 extern crate sha2;
+extern crate time;
 
 pub mod activity;
 pub mod heat;

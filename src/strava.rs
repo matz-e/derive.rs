@@ -41,12 +41,12 @@ impl DataExport {
                 }
                 let raw_datetime = date_padding_re.replace(&record["Activity Date"], "${1}0${2}");
                 let raw_datetime = time_padding_re.replace(&raw_datetime, "${1}0${2}");
-                let raw_datetime = Utc.datetime_from_str(&raw_datetime, "%b %e, %Y, %r");
+                let raw_datetime = DateTime::parse_from_str(&raw_datetime, "%b %e, %Y, %r");
                 if raw_datetime.is_err() {
                     parse_errors += 1;
                     return None;
                 }
-                let datetime = raw_datetime.unwrap();
+                let datetime = raw_datetime.unwrap().into();
                 Some(RawActivity::new(
                     record["Activity Name"].clone(),
                     datetime,

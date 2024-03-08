@@ -1,5 +1,5 @@
 use fonts::system_fonts;
-use geo::{Coordinate, Point};
+use geo_types::{Coord, Point};
 use image::ImageBuffer;
 use imageproc::drawing::draw_text_mut;
 use palette::{Gradient, Hsv, IntoColor, Pixel, Srgb};
@@ -103,7 +103,7 @@ impl Heatmap {
     }
 
     #[inline]
-    fn get_pixel_mut(&mut self, point: &Coordinate<u32>) -> Option<&mut u32> {
+    fn get_pixel_mut(&mut self, point: &Coord<u32>) -> Option<&mut u32> {
         if point.x >= self.width || point.y >= self.height {
             return None;
         }
@@ -113,7 +113,7 @@ impl Heatmap {
     }
 
     #[inline]
-    pub fn add_point(&mut self, point: &Coordinate<u32>) {
+    pub fn add_point(&mut self, point: &Coord<u32>) {
         // FIXME: lol rust?
         let px = {
             let px = self.get_pixel_mut(point).unwrap();
@@ -136,7 +136,7 @@ impl Heatmap {
     }
 
     // Returns None if point is off screen.
-    pub fn project_to_screen(&self, coord: &Point<f64>) -> Option<Coordinate<u32>> {
+    pub fn project_to_screen(&self, coord: &Point<f64>) -> Option<Coord<u32>> {
         if let Some(mapping) = self.map.to_pixels(coord) {
             return Some(mapping);
         }

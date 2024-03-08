@@ -8,9 +8,11 @@ use std::path::{Path, PathBuf};
 
 use fitparser::profile::field_types;
 use flate2::read::GzDecoder;
-use geo::{Coordinate, Point};
+use geo::Point;
+use geo_types::Coord;
 use gpx::{Gpx, Track};
 use rayon::prelude::*;
+use time::OffsetDateTime;
 
 fn extract_coordinate(field: &fitparser::FitDataField) -> Option<f64> {
     if field.units() == "semicircles" {
@@ -74,7 +76,9 @@ fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
 
     if let Some(metadata) = gpx.metadata {
         if let Some(time) = metadata.time {
-            activity.date = time;
+            activity.date = chrono::DateTime::from_timestamp(
+                OffsetDateTime::from(time).unix_timestamp(), 0
+            ).expect("Timestamp conversion failed");
         }
     }
 
@@ -121,7 +125,7 @@ pub struct Activity {
 pub struct ScreenActivity {
     pub name: String,
     pub date: chrono::DateTime<chrono::Utc>,
-    pub track_points: Vec<Coordinate<u32>>,
+    pub track_points: Vec<Coord<u32>>,
 }
 
 impl RawActivity {
@@ -147,7 +151,7 @@ impl RawActivity {
 
 impl Activity {
     pub fn project_to_screen(self, heatmap: &Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
-        let mut track_points: Vec<Coordinate<u32>> = self
+        let mut track_points: Vec<Coord<u32>> = self
             .track_points
             .par_iter()
             .filter_map(|pt| heatmap.project_to_screen(pt))

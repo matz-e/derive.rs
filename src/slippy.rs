@@ -1,5 +1,5 @@
 use geo::algorithm::contains::Contains;
-use geo::{Coordinate, Point, Rect};
+use geo_types::{Coord, Point, Rect};
 
 pub const TILE_SIZE: u32 = 256;
 
@@ -75,7 +75,7 @@ impl Map {
         self.extends_tiled.min().y as u32..=self.extends_tiled.max().y as u32
     }
 
-    pub fn to_pixels(&self, coord: &Point<f64>) -> Option<Coordinate<u32>> {
+    pub fn to_pixels(&self, coord: &Point<f64>) -> Option<Coord<u32>> {
         if !self.extends_coord.contains(coord) {
             return None;
         }
