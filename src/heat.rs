@@ -25,7 +25,8 @@ lazy_static! {
 
 pub trait Heatmap {
     fn as_image(&self) -> image::DynamicImage;
-    fn as_image_with_overlay( &self,
+    fn as_image_with_overlay(
+        &self,
         name: &str,
         date: &chrono::DateTime<chrono::Utc>,
     ) -> image::DynamicImage;
