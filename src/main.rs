@@ -43,7 +43,10 @@ struct Args {
     #[arg(short, long, default_value_t = 10)]
     zoom: u8,
     /// URL pattern for background tiles (standard OSM: https://a.tile.osm.org/{z}/{x}/{y}.png)
-    #[arg(long, default_value = "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png")]
+    #[arg(
+        long,
+        default_value = "https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png"
+    )]
     url: String,
 
     // video options
@@ -64,22 +67,19 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let is_tty = unsafe { libc::isatty(libc::STDOUT_FILENO) } != 0;
-    if args.stream && is_tty {
-        eprintln!(
-            "Refusing to write frame data to TTY.\n
-Please pipe output to a file or program."
-        );
-        std::process::exit(1);
+    #[cfg(unix)]
+    {
+        let is_tty = unsafe { libc::isatty(libc::STDOUT_FILENO) } != 0;
+        if args.stream && is_tty {
+            eprintln!(
+                "Refusing to write frame data to TTY.\n
+    Please pipe output to a file or program."
+            );
+            std::process::exit(1);
+        }
     }
 
-    let reference_map = slippy::Map::from(
-        args.lon,
-        args.lat,
-        args.width,
-        args.height,
-        args.zoom,
-    );
+    let reference_map = slippy::Map::from(args.lon, args.lat, args.width, args.height, args.zoom);
 
     let basemap = Basemap::from(reference_map, &args.url)?;
     let mut map = PixelHeatmap::from(reference_map, args.date, args.title);

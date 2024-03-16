@@ -75,9 +75,9 @@ fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
 
     if let Some(metadata) = gpx.metadata {
         if let Some(time) = metadata.time {
-            activity.date = chrono::DateTime::from_timestamp(
-                OffsetDateTime::from(time).unix_timestamp(), 0
-            ).expect("Timestamp conversion failed");
+            activity.date =
+                chrono::DateTime::from_timestamp(OffsetDateTime::from(time).unix_timestamp(), 0)
+                    .expect("Timestamp conversion failed");
         }
     }
 
@@ -149,7 +149,10 @@ impl RawActivity {
 }
 
 impl Activity {
-    pub fn project_to_screen(self, heatmap: &dyn Heatmap) -> Result<ScreenActivity, Box<dyn Error>> {
+    pub fn project_to_screen(
+        self,
+        heatmap: &dyn Heatmap,
+    ) -> Result<ScreenActivity, Box<dyn Error>> {
         let mut track_points: Vec<Coord<u32>> = self
             .track_points
             .iter()
