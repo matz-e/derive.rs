@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use regex::Regex;
 
 use super::activity::{RawActivity, ScreenActivity};
-use super::heat::PixelHeatmap;
+use super::heat::Heatmap;
 
 pub struct DataExport {
     activities: Vec<RawActivity>,
@@ -39,14 +39,18 @@ impl DataExport {
                     no_files += 1;
                     return None;
                 }
-                let raw_datetime = date_padding_re.replace(&record["Activity Date"], "${1}0${2}");
-                let raw_datetime = time_padding_re.replace(&raw_datetime, "${1}0${2}");
-                let raw_datetime = DateTime::parse_from_str(&raw_datetime, "%b %e, %Y, %r");
-                if raw_datetime.is_err() {
-                    parse_errors += 1;
-                    return None;
-                }
-                let datetime = raw_datetime.unwrap().into();
+                let raw_datetime = date_padding_re.replace(&record["Activity Date"], "${1} ${2}");
+                let raw_datetime = time_padding_re.replace(&raw_datetime, "${1} ${2}");
+                let parsed_datetime =
+                    NaiveDateTime::parse_from_str(&raw_datetime, "%b %e, %Y, %l:%M:%S %p");
+                let datetime = match parsed_datetime {
+                    Err(e) => {
+                        parse_errors += 1;
+                        eprintln!("Failed to parse {:?}: {}", raw_datetime, e);
+                        DateTime::from_timestamp(0, 0).unwrap()
+                    }
+                    Ok(t) => t.and_utc(),
+                };
                 Some(RawActivity::new(
                     record["Activity Name"].clone(),
                     datetime,
@@ -66,7 +70,7 @@ impl DataExport {
         Ok(DataExport { activities })
     }
 
-    pub fn parse(self, map: &mut PixelHeatmap) -> Vec<ScreenActivity> {
+    pub fn parse(self, map: &dyn Heatmap) -> Vec<ScreenActivity> {
         let n = self.activities.len();
         eprint!("Parsing {:?} files", n);
 
