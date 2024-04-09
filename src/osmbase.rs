@@ -67,12 +67,14 @@ impl Downloader {
     }
 }
 
+/// A basemap displaying OSM tiles
 pub struct Basemap {
     map: slippy::Map,
     getter: Downloader,
 }
 
 impl Basemap {
+    /// Create a basemap with specified map settings and tile download URL
     pub fn from(map: slippy::Map, url_pattern: &str) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             map,
@@ -80,7 +82,8 @@ impl Basemap {
         })
     }
 
-    pub fn draw(self) -> Result<image::DynamicImage, Box<dyn Error>> {
+    /// Download tile images and construct the basemap
+    pub fn as_image(self) -> Result<image::DynamicImage, Box<dyn Error>> {
         let (width, height) = self.map.pixel_size();
         let mut pixmap = image::DynamicImage::new_rgba8(width, height);
 
