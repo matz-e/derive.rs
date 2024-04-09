@@ -90,17 +90,6 @@ struct Args {
     date: bool,
 }
 
-/// Create a tint layer, with tint of 0.0 being fully transparent, and 1.0 completely black.
-/// Tint values are clamped to this range.
-fn create_tint(map: &slippy::Map, tint: f32) -> image::DynamicImage {
-    let (width, height) = map.pixel_size();
-    let mut pixmap = image::DynamicImage::new_rgba8(width, height);
-    let color = image::Rgba([0u8, 0, 0, (tint.clamp(0.0, 1.0) * 255.0) as u8]);
-    let fullscreen = imageproc::rect::Rect::at(0, 0).of_size(width, height);
-    imageproc::drawing::draw_filled_rect_mut(&mut pixmap, fullscreen, color);
-    pixmap
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
@@ -127,18 +116,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let export = strava::DataExport::new(&path::PathBuf::from(&args.directory))?;
     let activities = export.parse(&*map);
     let mut stdout = stdout();
+    let mut counter = 0;
+    let rendered_basemap = basemap.as_image(args.tint)?;
     for act in activities {
-        let mut counter = 0;
         for ref point in act.track_points.into_iter() {
             map.add_point(point);
 
             counter += 1;
 
             if args.stream && counter % args.frame_rate == 0 {
-                let image = map.as_image_with_overlay(&act.name, &act.date);
-                image
-                    .write_to(&mut stdout, image::ImageFormat::Png)
-                    .unwrap();
+                let mut pixmap = rendered_basemap.clone();
+                let heat_pixmap = map.as_image().to_rgba8();
+                image::imageops::overlay(&mut pixmap, &heat_pixmap, 0, 0);
+                pixmap.write_to(&mut stdout, image::ImageFormat::Png)?;
             }
         }
 
@@ -146,19 +136,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         // map.decay(1);
     }
 
-    if args.stream {
-        map.as_image()
-            .write_to(&mut stdout, image::ImageFormat::Png)
-            .unwrap();
-    };
-    let (width, height) = reference_map.pixel_size();
-    let mut pixmap = image::DynamicImage::new_rgba8(width, height);
-    let base_pixmap = basemap.as_image()?;
-    let tint_pixmap = create_tint(&reference_map, args.tint);
+    let mut pixmap = rendered_basemap;
     let heat_pixmap = map.as_image().to_rgba8();
-    image::imageops::overlay(&mut pixmap, &base_pixmap, 0, 0);
-    image::imageops::overlay(&mut pixmap, &tint_pixmap, 0, 0);
     image::imageops::overlay(&mut pixmap, &heat_pixmap, 0, 0);
-    pixmap.save(args.output)?;
+    if args.stream {
+        pixmap.write_to(&mut stdout, image::ImageFormat::Png)?;
+    } else {
+        pixmap.save(args.output)?;
+    }
     Ok(())
 }

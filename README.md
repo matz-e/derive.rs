@@ -1,18 +1,40 @@
 # derive.rs
 
-![demo](https://i.imgur.com/SXYasIX.gif)
+Rust reimplementation of [derive](https://github.com/erik/derive). Takes a Strava data
+export and renders heatmaps based on activities.
 
-Rust reimplementation of [derive](https://github.com/erik/derive).
+## Example usage
 
+### Static Heatmap
+
+The command
 ```
 cargo run --release -- \
-          --lat=47.2 \
-          --lon=6.7 \
-          --zoom 8 \
-          --width=1200 \
-          --height=1200 \
-          --stream \
-          --frame-rate 50 \
-          ~/Downloads/strava/activities \
-| ffmpeg -i - -y heatmap.mp4
+    --lat=46.25 --lon=6.1 --zoom=11 \
+    --width=600 --height=400 \
+    --tint=0.6 \
+    --heatmap=squadratino \
+    --output=heatmap.jpg \
+    ~/Downloads/strava
 ```
+gives me this heatmap:
+
+![heatmap centered on Geneva, CH](examples/heatmap.jpg)
+
+### Animated Heatmap
+
+Using the `--stream` argument and `--frame-rate` to control after how many tile updates
+new frames are produced
+```
+cargo run --release -- \
+    --lat=46.25 --lon=6.3 --zoom=9 \
+    --width=600 --height=400 \
+    --tint 0.7 \
+    --heatmap=squadrat \
+    --stream --frame-rate 1250 \
+    ~/Downloads/strava \
+    | ffmpeg -i - -y heatmap.gif
+```
+and produces an animation:
+
+![animated heatmap centered on Geneva, CH](examples/heatmap.gif)
