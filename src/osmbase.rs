@@ -82,8 +82,9 @@ impl Basemap {
         })
     }
 
-    /// Download tile images and construct the basemap
-    pub fn as_image(self) -> Result<image::DynamicImage, Box<dyn Error>> {
+    /// Download tile images and construct the basemap, tinting it with 1.0 being a fully black
+    /// map.
+    pub fn as_image(&self, tint: f32) -> Result<image::DynamicImage, Box<dyn Error>> {
         let (width, height) = self.map.pixel_size();
         let mut pixmap = image::DynamicImage::new_rgba8(width, height);
 
@@ -139,6 +140,11 @@ impl Basemap {
                 image::imageops::overlay(&mut pixmap, &tile, x, y);
             }
         }
+        let mut tint_layer = image::DynamicImage::new_rgba8(width, height);
+        let color = image::Rgba([0u8, 0, 0, (tint.clamp(0.0, 1.0) * 255.0) as u8]);
+        let fullscreen = imageproc::rect::Rect::at(0, 0).of_size(width, height);
+        imageproc::drawing::draw_filled_rect_mut(&mut tint_layer, fullscreen, color);
+        image::imageops::overlay(&mut pixmap, &tint_layer, 0, 0);
         Ok(pixmap)
     }
 }
