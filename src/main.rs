@@ -34,7 +34,7 @@ fn fraction(s: &str) -> Result<f32, String> {
 enum HeatmapKind {
     Pixel,
     Squadrat,
-    Squadratino,
+    Squadratinho,
 }
 
 /// Generate a heatmap from activities
@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut map: Box<dyn Heatmap + Send> = match args.heatmap {
         HeatmapKind::Pixel => Box::new(PixelHeatmap::from(reference_map, args.date, args.title)),
         HeatmapKind::Squadrat => Box::new(TileHeatmap::from(reference_map, 14)),
-        HeatmapKind::Squadratino => Box::new(TileHeatmap::from(reference_map, 17)),
+        HeatmapKind::Squadratinho => Box::new(TileHeatmap::from(reference_map, 17)),
     };
 
     let export = strava::DataExport::new(&path::PathBuf::from(&args.directory))?;

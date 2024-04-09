@@ -13,7 +13,7 @@ cargo run --release -- \
     --lat=46.25 --lon=6.1 --zoom=11 \
     --width=600 --height=400 \
     --tint=0.6 \
-    --heatmap=squadratino \
+    --heatmap=squadratinho \
     --output=heatmap.jpg \
     ~/Downloads/strava
 ```
