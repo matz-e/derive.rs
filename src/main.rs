@@ -5,7 +5,7 @@ extern crate geo;
 extern crate libc;
 extern crate serde;
 
-use derivers::heat::{Heatmap, PixelHeatmap, TileHeatmap};
+use derivers::heat::{Coloring, Heatmap, PixelHeatmap, TileHeatmap};
 use derivers::osmbase::Basemap;
 use derivers::slippy;
 use derivers::strava;
@@ -75,6 +75,14 @@ struct Args {
     #[arg(long, value_enum, default_value_t = HeatmapKind::Pixel)]
     heatmap: HeatmapKind,
 
+    /// Color used for rarely frequented pixels/tiles in RGBA
+    #[arg(long, num_args = 4, default_values_t = [0u8, 255, 0, 6])]
+    cold_color: Vec<u8>,
+
+    /// Color used for most frequented pixels/tiles in RGBA
+    #[arg(long, num_args = 4, default_values_t = [255u8, 0, 0, 255])]
+    hot_color: Vec<u8>,
+
     // video options
     /// Output a frame every `RATE` GPS points
     #[arg(short = 'r', long, default_value_t = 1500)]
@@ -107,6 +115,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let reference_map = slippy::Map::from(args.lon, args.lat, args.width, args.height, args.zoom);
     let basemap = Basemap::from(reference_map, &args.url)?;
+    let coloring = Coloring::new(
+        (
+            args.cold_color[0],
+            args.cold_color[1],
+            args.cold_color[2],
+            args.cold_color[3],
+        )
+            .into(),
+        (
+            args.hot_color[0],
+            args.hot_color[1],
+            args.hot_color[2],
+            args.hot_color[3],
+        )
+            .into(),
+    );
     let mut map: Box<dyn Heatmap + Send> = match args.heatmap {
         HeatmapKind::Pixel => Box::new(PixelHeatmap::from(reference_map, args.date, args.title)),
         HeatmapKind::Squadrat => Box::new(TileHeatmap::from(reference_map, 14)),
@@ -126,7 +150,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             if args.stream && counter % args.frame_rate == 0 {
                 let mut pixmap = rendered_basemap.clone();
-                let heat_pixmap = map.as_image().to_rgba8();
+                let heat_pixmap = map.as_image(&coloring).to_rgba8();
                 image::imageops::overlay(&mut pixmap, &heat_pixmap, 0, 0);
                 pixmap.write_to(&mut stdout, image::ImageFormat::Png)?;
             }
@@ -137,7 +161,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut pixmap = rendered_basemap;
-    let heat_pixmap = map.as_image().to_rgba8();
+    let heat_pixmap = map.as_image(&coloring).to_rgba8();
     image::imageops::overlay(&mut pixmap, &heat_pixmap, 0, 0);
     if args.stream {
         pixmap.write_to(&mut stdout, image::ImageFormat::Png)?;
