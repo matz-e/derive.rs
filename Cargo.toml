@@ -5,6 +5,7 @@ authors = ["Matthias Wolf <m@sushinara.net>", "Erik Price <github@erikprice.net>
 edition = "2024"
 
 [dependencies]
+base16ct = "1.0.0"
 chrono = "0.4.37"
 clap = { version = "4.5.1", features = ["derive"] }
 csv = "1.1"
