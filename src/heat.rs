@@ -1,17 +1,15 @@
 use fonts::system_fonts;
-use geo_types::{coord, Coord, Point};
+use geo_types::{Coord, Point, coord};
 use image::ImageBuffer;
-use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut};
+use imageproc::drawing::draw_filled_rect_mut;
 use imageproc::rect::Rect;
-use palette::{Gradient, Hsv};
+use palette::Mix;
 use rayon::prelude::*;
-use rusttype::{Font, Scale};
+use rusttype::Font;
 
 use super::slippy;
 
 lazy_static! {
-    static ref GRADIENT: Gradient<Hsv> =
-        Gradient::new(vec![Hsv::new(0.0, 0.75, 0.45), Hsv::new(0.0, 0.75, 1.00),]);
     static ref FONT: Font<'static> = {
         let property = system_fonts::FontPropertyBuilder::new()
             .family("Roboto Light")
@@ -24,18 +22,34 @@ lazy_static! {
     };
 }
 
+/// Provides a color grading for the heatmap
+pub struct Coloring {
+    cold: palette::LinSrgba,
+    hot: palette::LinSrgba,
+}
+
+impl Coloring {
+    /// Create a new gradient ranging from cold to hot
+    pub fn new(cold: palette::Srgba<u8>, hot: palette::Srgba<u8>) -> Self {
+        let cold: palette::LinSrgba = cold.into_linear();
+        let hot: palette::LinSrgba = hot.into_linear();
+        Coloring { cold, hot }
+    }
+
+    /// Get a color according to `fraction`, which will be clamped to 0.0 and 1.0
+    pub fn get(&self, fraction: f32) -> [u8; 4] {
+        let color: palette::Srgba<u8> = self
+            .cold
+            .mix(self.hot, fraction.clamp(0.0, 1.0))
+            .into_encoding();
+        color.into_components().into()
+    }
+}
+
 /// A representation of a heatmap
 pub trait Heatmap: Send + Sync {
     /// Renders the heatmap
-    fn as_image(&self) -> image::DynamicImage;
-
-    /// Renders the heatmap with additional information
-    /// TODO should be moved outside this trait
-    fn as_image_with_overlay(
-        &self,
-        name: &str,
-        date: &chrono::DateTime<chrono::Utc>,
-    ) -> image::DynamicImage;
+    fn as_image(&self, coloring: &Coloring) -> image::DynamicImage;
 
     /// Adds a point to the heatmap
     fn add_point(&mut self, point: &Coord<u32>);
@@ -126,7 +140,7 @@ impl TileHeatmap {
 }
 
 impl Heatmap for TileHeatmap {
-    fn as_image(&self) -> image::DynamicImage {
+    fn as_image(&self, coloring: &Coloring) -> image::DynamicImage {
         let (width, height) = self.map.pixel_size();
         let mut buffer = ImageBuffer::new(width, height);
 
@@ -136,29 +150,17 @@ impl Heatmap for TileHeatmap {
         for x in 0..self.width {
             for y in 0..self.height {
                 let count = self.heatmap[(x + y * self.width) as usize];
-                let heat = if count > 0 {
-                    (count as f64 + 1.0).log10() / (self.max_value as f64 + 1.0).log10() * 250.0
-                        + 6.0
-                } else {
-                    0.0
-                };
-                let color = image::Rgba([heat as u8, 0, 0, heat as u8]);
-                let pos = Rect::at(x0 + (x * tile_size) as i32, y0 + (y * tile_size) as i32)
-                    .of_size(tile_size, tile_size);
-                draw_filled_rect_mut(&mut buffer, pos, color);
+                if count > 0 {
+                    let heat = (count as f32 + 1.0).log10() / (self.max_value as f32 + 1.0).log10();
+                    let color = coloring.get(heat).into();
+                    let pos = Rect::at(x0 + (x * tile_size) as i32, y0 + (y * tile_size) as i32)
+                        .of_size(tile_size, tile_size);
+                    draw_filled_rect_mut(&mut buffer, pos, color);
+                }
             }
         }
 
         image::DynamicImage::ImageRgba8(buffer)
-    }
-
-    /// Not supported
-    fn as_image_with_overlay(
-        &self,
-        _name: &str,
-        _date: &chrono::DateTime<chrono::Utc>,
-    ) -> image::DynamicImage {
-        self.as_image()
     }
 
     #[inline]
@@ -195,6 +197,7 @@ impl Heatmap for TileHeatmap {
     }
 }
 
+#[allow(dead_code)]
 pub struct PixelHeatmap {
     map: slippy::Map,
     heatmap: Vec<u32>,
@@ -233,7 +236,7 @@ impl PixelHeatmap {
 }
 
 impl Heatmap for PixelHeatmap {
-    fn as_image(&self) -> image::DynamicImage {
+    fn as_image(&self, _coloring: &Coloring) -> image::DynamicImage {
         let color_map = self
             .heatmap
             .clone()
@@ -262,31 +265,23 @@ impl Heatmap for PixelHeatmap {
         image::DynamicImage::ImageRgba8(buffer)
     }
 
-    fn as_image_with_overlay(
-        &self,
-        name: &str,
-        date: &chrono::DateTime<chrono::Utc>,
-    ) -> image::DynamicImage {
-        let mut image = self.as_image();
+    // FIXME this should be preserved somewhere else
+    //
+    // let white = image::Rgba([255; 4]);
+    // let scale = Scale::uniform(self.height as f32 / 15.0);
 
-        let white = image::Rgba([255; 4]);
-        let scale = Scale::uniform(self.height as f32 / 15.0);
+    // let x = 20;
+    // let mut y = self.height - scale.y as u32;
 
-        let x = 20;
-        let mut y = self.height - scale.y as u32;
+    // if self.render_date {
+    //     let date_string = date.format("%B %d, %Y").to_string();
+    //     draw_text_mut(&mut image, white, x, y, scale, &FONT, date_string.as_str());
+    //     y -= scale.y as u32;
+    // }
 
-        if self.render_date {
-            let date_string = date.format("%B %d, %Y").to_string();
-            draw_text_mut(&mut image, white, x, y, scale, &FONT, date_string.as_str());
-            y -= scale.y as u32;
-        }
-
-        if self.render_title {
-            draw_text_mut(&mut image, white, x, y, scale, &FONT, name);
-        }
-
-        image
-    }
+    // if self.render_title {
+    //     draw_text_mut(&mut image, white, x, y, scale, &FONT, name);
+    // }
 
     #[inline]
     fn add_point(&mut self, point: &Coord<u32>) {

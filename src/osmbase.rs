@@ -1,3 +1,4 @@
+use base16ct::HexDisplay;
 use http_req::{request::Request, uri::Uri};
 use sha2::{Digest, Sha256};
 
@@ -30,11 +31,7 @@ impl Downloader {
             .replace("{z}", &zoom.to_string())
             .replace("{x}", &x.to_string())
             .replace("{y}", &y.to_string());
-        let hash = format!("{:X}", {
-            let mut s = Sha256::new();
-            s.update(&url);
-            s.finalize()
-        });
+        let hash = format!("{:X}", HexDisplay(&Sha256::digest(&url)));
         let mut cached = self.cache_dir.join(Path::new(&hash));
         if let Some(ext) = Path::new(&url).extension() {
             cached = cached.with_extension(ext);

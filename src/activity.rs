@@ -14,10 +14,10 @@ use gpx::{Gpx, Track};
 use time::OffsetDateTime;
 
 fn extract_coordinate(field: &fitparser::FitDataField) -> Option<f64> {
-    if field.units() == "semicircles" {
-        if let fitparser::Value::SInt32(raw) = field.value() {
-            return Some(*raw as f64 * 180.0 / u32::pow(2, 31) as f64);
-        }
+    if field.units() == "semicircles"
+        && let fitparser::Value::SInt32(raw) = field.value()
+    {
+        return Some(*raw as f64 * 180.0 / u32::pow(2, 31) as f64);
     }
     None
 }
@@ -73,12 +73,12 @@ fn parse_gpx<T: std::io::Read>(reader: &mut BufReader<T>) -> Result<Activity, Bo
         track_points: vec![],
     };
 
-    if let Some(metadata) = gpx.metadata {
-        if let Some(time) = metadata.time {
-            activity.date =
-                chrono::DateTime::from_timestamp(OffsetDateTime::from(time).unix_timestamp(), 0)
-                    .expect("Timestamp conversion failed");
-        }
+    if let Some(metadata) = gpx.metadata
+        && let Some(time) = metadata.time
+    {
+        activity.date =
+            chrono::DateTime::from_timestamp(OffsetDateTime::from(time).unix_timestamp(), 0)
+                .expect("Timestamp conversion failed");
     }
 
     // Append all the waypoints.
